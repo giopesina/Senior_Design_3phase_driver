@@ -26,3 +26,8 @@ The GUI is designed to be both functional and easy to navigate, allowing users t
 - **Real-Time Data Handling**: Integration with sensor systems for continuous data feed from the EV
 - **Microcontroller**: PIC 16F1517 (controls the 3-phase driver system)
 - **Communication Protocol**: I²C/SPI (for sensor communication)
+
+# List of what to do
+- **Create a skeleton of the GUI
+- **Connect the fake data generator to the GUI
+- **Connect the GUI to the data come from the Motor
