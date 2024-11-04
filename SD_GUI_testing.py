@@ -1,46 +1,81 @@
-
-"""
-Created on Thu Sep 26 22:08:41 2024
-
-@author: megag
-"""
-
 import tkinter as tk
 from tkinter import ttk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib.ticker as plticker
+import matplotlib.gridspec as gridspec
 import random
-import math
-import time
 
 
-# init toggle states
+# Initialize toggle states
 rnd_rpm = True
 rnd_temp = True
+rnd_rpm2 = True
 
-# func to toggle between random and constant 
+# Function to toggle between random and constant RPM/temperature
 def toggle_cruise():
-    global rnd_rpm, rnd_temp
+    global rnd_rpm, rnd_rpm2
+    rnd_rpm2 = True
     rnd_rpm = not rnd_rpm
-    rnd_temp = not rnd_temp
     if rnd_rpm:
-        rpm_bttn.config(text="Switch to Constant")  # Switch to "Random"
+        rpm_bttn.config(text="Switch to Constant")
     else:
-        rpm_bttn.config(text="Switch to Random")  # Switch to "Constant"
+        rpm_bttn.config(text="Switch to Random")
+def set_speed_button(val):
+    global set_speed, rpm
+    rnd_rpm2 = False
+    setrpm = float(val)
+    rpm[-1] = setrpm
+    slider_changed(val)
+    
+def set_slider_rpm(val):
+    global rnd_rpm2, rpm
+    rnd_rpm2 = False
+    setrpm = float(val)
+    rpm[-1] = setrpm  # Directly update the RPM value based on slider position
+    slider_changed(val)
+    
+def get_current_value():
+    return 'RPM: {: .2f}'.format(val.get())
 
+def slider_changed(event):
+    value_label.configure(text=get_current_value())
+
+# Increment RPM by 10
+def increment_rpm():
+    global rpm
+    rpm[-1] += 10
+    if rpm[-1] > hirpm:
+        rpm[-1] = hirpm
+    slider_changed(None)
+
+# Decrement RPM by 10
+def decrement_rpm():
+    global rpm
+    rpm[-1] -= 10
+    if rpm[-1] < lowrpm:
+        rpm[-1] = lowrpm
+    slider_changed(None)
+    
+lowrpm = 0
+hirpm = 3000
 # Function to update the plot in real-time
 def update_graph():
-    global temperature, rpm, line1, line2, rnd_rpm
-
-    if rnd_rpm:
-        # gen rnd temp and rpm data
-        rpm.append(random.uniform(0, 3000))
+    global temperature, rpm, heatloss, line1, line2, line3, rnd_rpm, lowrpm, hirpm, rnd_rpm2
+    
+    if rnd_rpm and (rnd_rpm2 != False):
+        # Generate random temperature and RPM data
+        rpm.append(random.uniform(lowrpm, hirpm))
         temperature.append(random.uniform(50, 120))
     else:
-        # use the last rpm and temperature value for constant mode
+        # Use the last rpm and temperature value for constant mode
         rpm.append(rpm[-1])  # Append the last value (constant RPM)
-        temperature.append(temperature[-1] + random.uniform(-3, 3))  # Add small fluctuation for realism
+        temperature.append(temperature[-1] + random.uniform(-3, 3))  # Small fluctuation
+
+    # Calculate heat loss (avoid dividing by zero)
+    if temperature[-1] != 0:
+        heatloss.append(rpm[-1] / temperature[-1])
+    else:
+        heatloss.append(0)
 
     # Update line1 (Temperature graph)
     x_temperature = range(len(temperature))
@@ -52,59 +87,95 @@ def update_graph():
     line2.set_xdata(x_rpm)
     line2.set_ydata(rpm)
 
-    # rescale
+    # Update line3 (Heat Loss graph)
+    line3.set_xdata(x_rpm)
+    line3.set_ydata(heatloss)
+
+    # Rescale axes
     ax1.relim()
     ax1.autoscale_view()
     
     ax2.relim()
     ax2.autoscale_view()
-
-    # redraw
+    
+    ax3.relim()
+    ax3.autoscale_view()
+    value_label = ttk.Label(
+        root,
+        text=get_current_value()
+    )
+    # Redraw the canvas
     canvas.draw()
 
-    # schedule the next update
-    root.after(16, update_graph)  # Update 60 times every second
-
-
+    # Schedule the next update (60 updates per second)
+    root.after(16, update_graph)
 
 # Setup Tkinter
 root = tk.Tk()
-root.title("Real-Time Temperature and RPM Graphs")
+root.title("Real-Time Temperature, RPM, and Heat Loss Graphs")
 
-# Create a plot graph figure and axes (2 subplots one for temp and one for RPM)
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))  # 2 rows, 1 column of subplots
-plt.subplots_adjust(hspace = 0.5)
-# innit temp and RPM data
-temperature = [0]  # init temperature data
-rpm = [0]  # init RPM data
+# Create a figure and axes (3 rows, 1 column for 3 subplots)
+fig = plt.figure(figsize=(12,10))
+gs = gridspec.GridSpec(3,3,figure=fig)
+
+ax1 = fig.add_subplot(gs[0,:-1])
+ax2 = fig.add_subplot(gs[2,:-1])
+ax3 = fig.add_subplot(gs[1,1:])
+
+# Initialize temperature, RPM, and heat loss data
+temperature = [0]
+rpm = [0]
+heatloss = [0]
 
 # Create initial line plots
-line1, = ax1.plot(temperature, color='red')
-line2, = ax2.plot(rpm, color='blue')
+line1, = ax1.plot(temperature, color='red', label="Temperature")
+line2, = ax2.plot(rpm, color='blue', label="RPM")
+line3, = ax3.plot(heatloss, color='purple', label="Heat Loss")
 
-# Set titles for each graph
+# Set titles and labels for each axis
 ax1.set_title("Temperature (°C)")
-ax2.set_title("RPM (Revolutions per Minute)")
-
-# Set labels for axes
-ax1.set_xlabel("Time (seconds)")
 ax1.set_ylabel("Temperature (°C)")
-ax2.set_xlabel("Time (seconds)")
+
+ax2.set_title("RPM (Revolutions per Minute)")
 ax2.set_ylabel("RPM")
 
-loc = plticker.IndexLocator()
-ax2.xaxis.set_major_locator(loc)
+ax3.set_title("Heat Loss due to Speed")
+ax3.set_ylabel("Heat Loss")
 
-# Create a canvas to place the plot figures inside the Tkinter window
+# Create a canvas to place the plot inside the Tkinter window
 canvas = FigureCanvasTkAgg(fig, master=root)
 canvas_widget = canvas.get_tk_widget()
 canvas_widget.pack(fill=tk.BOTH, expand=1)
 
-# add a button to toggle between random and constant RPM/temperature
-rpm_bttn = ttk.Button(root, text="Switch to constant", command=toggle_cruise)
-rpm_bttn.pack()
+# Add a button to toggle between random and constant RPM/temperature
+rpm_bttn = ttk.Button(root, text="Switch to Constant", command=toggle_cruise)
+rpm_bttn.configure(width = 40)
+rpm_bttn.pack(side='left', expand=True)
+val = tk.DoubleVar()
+# Add a slider to control RPM
+rpm_slider = ttk.Scale(
+    root,
+    from_=lowrpm,
+    to=hirpm,
+    orient='vertical',  # horizontal
+    command=set_slider_rpm,
+    variable = val
+)
+rpm_slider.pack(side='right', expand=True)
+value_label = ttk.Label(
+    root,
+    text=get_current_value()
+)
 
-# add a quit button to the GUI
+# Add buttons to increment and decrement RPM by 10
+increment_button = ttk.Button(root, text="Increment RPM by 10", command=increment_rpm)
+increment_button.pack(side='left', expand=True)
+
+decrement_button = ttk.Button(root, text="Decrement RPM by 10", command=decrement_rpm)
+decrement_button.pack(side='left', expand=True)
+
+value_label.pack(side='right')
+# Add a quit button to the GUI
 def quit():
     root.quit()
     root.destroy()
