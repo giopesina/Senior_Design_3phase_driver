@@ -1,3 +1,5 @@
+#created by Giovanny Pesina
+
 import tkinter as tk
 from tkinter import ttk
 import matplotlib.pyplot as plt
