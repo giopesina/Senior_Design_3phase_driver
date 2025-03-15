@@ -1,89 +1,185 @@
 #include <xc.h>
-#include <math.h>  // Include math library for sine function
+#include <stdio.h>
+#include <stdlib.h>
 
-#define _XTAL_FREQ 8000000   // Use 8 MHz internal oscillator
-#define NUM_POINTS 60        // Number of points for half-cycle
+// CONFIGURATION BITS
+#pragma config FOSC = HS    // High-Speed Oscillator
+#pragma config WDTE = OFF       // Watchdog Timer Disabled
+#pragma config PWRTE = OFF      // Power-up Timer Disabled
+#pragma config BOREN = OFF      // Brown-out Reset Enabled
+#pragma config LVP = OFF        // Low-Voltage Programming Disabled
+#pragma config CPD = OFF        // Data EEPROM Memory Code Protection Disabled
+#pragma config WRT = OFF        // Flash Program Memory Write Protection Disabled
+#pragma config CP = OFF         // Flash Program Memory Code Protection Disabled
 
-// Sine lookup table for generating PWM duty cycle values
-const float sine_table[NUM_POINTS] = {
-    0.0523, 0.1045, 0.1564, 0.2079, 0.2588, 0.3090, 0.3584, 0.4067, 0.4539, 0.5000,
-    0.5446, 0.5878, 0.6293, 0.6691, 0.7071, 0.7431, 0.7771, 0.8090, 0.8387, 0.8660,
-    0.8910, 0.9135, 0.9336, 0.9511, 0.9659, 0.9781, 0.9877, 0.9945, 0.9986, 1.0000,
-    0.9986, 0.9945, 0.9877, 0.9781, 0.9659, 0.9511, 0.9336, 0.9135, 0.8910, 0.8660,
-    0.8387, 0.8090, 0.7771, 0.7431, 0.7071, 0.6691, 0.6293, 0.5878, 0.5446, 0.5000,
-    0.4539, 0.4067, 0.3584, 0.3090, 0.2588, 0.2079, 0.1564, 0.1045, 0.0523, 0.0000
-};
+#define _XTAL_FREQ 8000000      // 8 MHz INTOSC
 
-// Initialize ADC to read from AN0 (potentiometer)
-void adc_init() {
-    ADCON1 = 0x0E; // Configure AN0 as analog input
-    ADCON0 = 0x01; // Enable ADC module
-}
 
-// Read ADC value from potentiometer
-int adc_read() {
-    ADCON0 |= 0x02;  // Start ADC conversion
-    while(ADCON0 & 0x02);  // Wait for conversion to complete
-    return ((ADRESH << 8) + ADRESL);  // Return 10-bit result
-}
 
-// Map ADC value to frequency (60 Hz to 20 kHz)
-int map_adc_to_frequency(int adc_value) {
-    return (adc_value * (20000 - 60)) / 1023 + 60;
-}
+// Global Variables
+int fidelity;
+volatile char stateValue;
+volatile char indexValue;
+volatile int timeSet;
+volatile int state;
 
-// Set PWM frequency using Timer2
-void set_pwm_frequency(int frequency) {
-    int pwm_period = (_XTAL_FREQ / (4 * frequency)) - 1;  // Calculate Timer2 period
-    PR2 = pwm_period;  // Set Timer2 period for desired frequency
-}
-
-// PWM initialization for CCP1 and CCP2 (used for positive and negative IGBTs)
-void pwm_init() {
-    // Configure Timer2 for PWM
-    T2CON = 0b00000100;  // Timer2 ON, prescaler = 1
-
-    // Configure CCP1 and CCP2 for PWM mode
-    CCP1CON = 0b00001100;  // CCP1 in PWM mode
-    CCP2CON = 0b00001100;  // CCP2 in PWM mode
-
-    // Set PWM pins as output (RC2/CCP1 and RC1/CCP2)
-    TRISCbits.TRISC2 = 0;  // RC2 as output for CCP1
-    TRISCbits.TRISC1 = 0;  // RC1 as output for CCP2
-
-    // Set initial duty cycle to 0
-    CCPR1L = 0x00;  // Initial duty cycle for CCP1
-    CCPR2L = 0x00;  // Initial duty cycle for CCP2
-}
-
-// Generate PWM signals for one phase (positive and negative)
-void generate_single_phase(int frequency) {
-    set_pwm_frequency(frequency);  // Set PWM frequency based on potentiometer
-
-    for (int i = 0; i < NUM_POINTS; i += 1) {
-        // Set duty cycle for the positive IGBT
-        int duty_cycle_pos = sine_table[i] * 255;  // Scale sine value to 8-bit PWM
-        CCPR1L = duty_cycle_pos;  // Set duty cycle for positive PWM (IGBT for positive)
-
-        // Set duty cycle for the negative IGBT (complementary)
-        int duty_cycle_neg = 255 - duty_cycle_pos;  // Complement of the positive signal
-        CCPR2L = duty_cycle_neg;  // Set duty cycle for negative PWM (IGBT for negative)
-
-        __delay_us(50);  // Small delay between pulses (adjust as needed)
-    }
-}
-
-// Main function
-void main() {
-    // Initialization
-    adc_init();  // Initialize ADC for potentiometer
-    pwm_init();  // Initialize PWM
+// Function Prototypes
+void controller_init(void);
+void global_init(void);
+void UART_Init(long baud_rate);
+void statusCheck(void);
+void phaseImp(void);
+void delay(int ms);
+void __interrupt() UART_ISR(void);
+char UART_Read(void);
+void UART_Transmit(char data);
+void pulse(void);
+int main(void) {
+    controller_init();
+    global_init();
+    UART_Init(9600);                 // Initialize UART with 9600 baud rate
     
-    // Main loop
     while (1) {
-        int pot_value = adc_read();  // Read potentiometer value
-        int frequency = map_adc_to_frequency(pot_value);  // Map to frequency
-
-        generate_single_phase(frequency);  // Generate positive and negative signals for one phase
+        statusCheck();  
+            
     }
+}
+
+// Function Definitions
+void statusCheck(void) {
+    if (stateValue == '0') {         // OFF
+        RD3 = 1;
+        RD4 = 0;
+        RD5 = 0;
+        UART_Transmit('A');
+    } 
+    else if (stateValue == '1') {    // STANDBY
+        RD3 = 0;
+        RD4 = 1;
+        RD5 = 0;
+        pulse();
+        UART_Transmit('A');
+    } 
+    else if (stateValue == '2') {    // RUN
+        RD3 = 0;
+        RD4 = 0;
+        RD5 = 1;
+        UART_Transmit('A');
+        phaseImp();
+    }
+    else {
+        RD3 = 1;
+        RD4 = 0; 
+        RD5 = 1;
+    }
+}
+
+void pulse(void){
+    RD6 = 1;
+    for(int i = 0; i < 2; i++){
+        __delay_ms(500);
+    }
+    RD6 = 0;
+    for(int i = 0; i < 2; i++){
+        __delay_ms(500);
+    }
+}
+// Initialize controller
+void controller_init(void) {
+    OSCCON = 0b01110000;                        // Set Internal Oscillator to 8 MHz
+    TRISD = 0x00;                               // Set PORTD as Output
+    PORTD = 0x00;                               // Initialize PORTD to Low
+}
+
+// UART Initialization
+void UART_Init(long baud_rate) {
+    //OSCCON = 0b01110000;                        // Set Internal Oscillator to 8 MHz
+
+    TRISC6 = 0;                                 // TX Output
+    TRISC7 = 1;                                 // RX Input
+    
+    BAUDCTL = 0;                                // 8-bit baud rate generator
+    BRGH = 1;                                   // High Baud Rate mode
+    SPBRG = (_XTAL_FREQ / (16 * baud_rate)) - 1;// Adjusted for 8 MHz
+
+    TXSTA = 0b00100100;                         // Enable Transmit, BRGH = 1
+    RCSTA = 0b10010000;                         // Enable Serial Port and Continuous Receive mode (8-bit mode)
+
+    PIE1bits.RCIE = 1;  
+    INTCONbits.PEIE = 1; 
+    INTCONbits.GIE = 1;
+}
+
+
+// Delay function
+void delay(int ms) {
+    for (int i = 0; i < ms; i++) {
+        __delay_us(1);
+    }
+}
+
+// Phase Implementation
+void phaseImp(void) {
+    for(int i = fidelity; i >= 0; i--){
+        RD0 = 0;
+        delay(timeSet);
+        RD1 = 1;
+        delay(timeSet);
+        RD2 = 0;
+        delay(timeSet);
+        RD0 = 1;
+        delay(timeSet);
+        RD1 = 0;
+        delay(timeSet);
+        RD2 = 1;
+        delay(timeSet);
+    }   
+}
+
+// Global variable initialization
+void global_init(void) {
+    stateValue = '0';                   // Used to determine if the system is on or off
+    indexValue = '0';                   // Used to determine the pulsing rate of the system
+    timeSet = 0;                        // Used, but unsure how - Zarek 
+    state = 0;                          // I'm not sure how this is used - Zarek
+    fidelity = 3;
+}
+
+// UART Interrupt Service Routine
+void __interrupt() UART_ISR(void) {
+    if (PIR1bits.RCIF) {                // UART Receive Interrupt
+        if (RCSTAbits.OERR) {           // Handle Overrun Error
+            RCSTAbits.CREN = 0;
+            RCSTAbits.CREN = 1;
+        }
+        
+        char receivedData = RCREG;      // Read first byte
+        stateValue = receivedData;      // Store received byte
+
+        // Check if another byte is available before reading again
+        if (PIR1bits.RCIF) {
+            indexValue = RCREG; 
+            timeSet = indexValue;
+        }
+    }
+}
+
+// UART Read Function
+char UART_Read(void) {
+    int timeout = 10000;                // Define a timeout limit
+    while (!PIR1bits.RCIF) {
+        if (--timeout == 0) return -1;  // Return -1 if no data received
+    }
+
+    if (RCSTAbits.OERR) {               // Check for Overrun Error
+        RCSTAbits.CREN = 0;             // Reset the receiver
+        RCSTAbits.CREN = 1;
+    }
+    return RCREG;                       // Return received data
+}
+
+// UART Transmit Function
+void UART_Transmit(char data) {
+    while (!PIR1bits.TXIF);             // Wait until TXREG is empty
+    TXREG = data;                       // Load data into TX register
 }
