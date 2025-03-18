@@ -1,54 +1,69 @@
-
-# 3-Phase Power Inverter with PIC16F1517 - Technical Breakdown
+# 3-Phase Controller Project
 
 ## Introduction
-This document details the design and implementation of a 3-phase power inverter using a PIC16F1517 microcontroller. The inverter converts DC to AC by controlling the switching of six IGBTs in a CMOS configuration using Pulse Width Modulation (PWM). The system is designed to handle loads up to 6kW, and the output frequency varies between 60Hz to 20kHz, based on user input from a potentiometer.
 
-## Math for PWM Generation
+This project is designed to develop an embedded system that controls 3-phase circuitry in real time using a PIC microcontroller. The project is implemented in C, is highly modifiable, and uses function calls to separate different parts of the code. The code has been optimized for an 8 MHz clock (with future plans to scale up to 20 MHz) and uses UART communication with interrupts to handle state and frequency updates.
 
-### 1. AC Signal Approximation Using PWM
-The PIC16F1517 can't generate analog AC signals directly, so Pulse Width Modulation (PWM) is used to approximate the AC sine wave. By controlling the duty cycle of a high-speed switching signal, we can mimic a sinusoidal waveform. The number of PWM points used per cycle determines the smoothness of the approximation.
+## Project Overview
 
-### 2. Number of PWM Pulse Points
-For this project, we use 60 points for each half-cycle of the sine wave, giving us 120 points for a full sine wave. This allows for a smoother waveform approximation compared to the previously suggested 20 points. The greater the number of points, the closer the waveform resembles a pure sine wave.
+The main purpose of the code is to control the pulsing of a 3-phase system. The system uses digital outputs to indicate different states (OFF, STANDBY, RUN) and to generate the required phase signals. The UART communication is used to receive commands (which update system state and timing) and to transmit status information.
 
-### 3. Sine Wave Calculation
-Each point in the PWM lookup table corresponds to a specific angle along the sine wave. The sine function is used to generate values between -1 and 1, and these are scaled to 8-bit PWM values (0 to 255). The formula for calculating the sine value at a specific point is:
+## Code Functionality
 
-```
-sine_value[i] = sin(i * π / NUM_POINTS)
-```
+### 1. Configuration and Global Setup
+- **Configuration Bits:**  
+  The configuration bits are set to use a High-Speed Oscillator (HS) with watchdog timer, power-up timer, and low-voltage programming disabled.  
+- **_XTAL_FREQ Definition:**  
+  The oscillator frequency is defined as 8 MHz.
+- **Global Variables:**  
+  Global variables such as `stateValue`, `indexValue`, `timeSet`, `state`, and `fidelity` are declared. These are used to maintain the system’s state and control the phase pulsing.
 
-where i is the index (from 0 to NUM_POINTS) and π is the mathematical constant Pi.
+### 2. Initialization Functions
+- **controller_init():**  
+  Sets the internal oscillator (8 MHz) and configures PORTD as an output with an initial low state.
+- **global_init():**  
+  Initializes global variables for system state and timing.
+- **UART_Init(long baud_rate):**  
+  Configures the UART with a specified baud rate (9600 in this case). It sets TX/RX pins, selects the high baud rate mode, calculates the baud rate generator value based on the oscillator frequency, and enables both the UART module and the required interrupts.
 
-### 4. Duty Cycle and Frequency Calculation
-The duty cycle for each PWM pulse is derived from the sine wave. For example, if the sine value at a given point is 0.5, the duty cycle would be:
+### 3. Main Loop
+- **main():**  
+  After calling the initialization functions, the `main()` function enters an infinite loop where it continuously calls `statusCheck()` to monitor and update the system state.
 
-```
-0.5 * 255 = 127
-```
+### 4. State Handling and Output Control
+- **statusCheck():**  
+  Checks the current state of the system (as indicated by `stateValue`) and sets the digital outputs accordingly:
+  - **OFF State (`'0'`):**  
+    Sets RD3 high while RD4 and RD5 are low.
+  - **STANDBY State (`'1'`):**  
+    Sets RD4 high (with RD3 and RD5 low), calls `pulse()` to generate a pulse sequence, and transmits status via UART.
+  - **RUN State (`'2'`):**  
+    Sets RD5 high (with RD3 and RD4 low), transmits status via UART, and calls `phaseImp()` to perform the phase pulsing sequence.
+  - If none of these states match, a default output is applied.
 
-This means the signal is on for 50% of the time during that pulse.
+- **pulse():**  
+  Toggles RD6 to generate a pulse sequence by turning it on and off with half-second delays.
 
-### 5. Mapping ADC Input to Frequency
-The output frequency is controlled by the user via a potentiometer connected to the ADC. The ADC produces values between 0 and 1023, and this value is mapped to a frequency range from 60Hz to 20kHz using the formula:
+- **phaseImp():**  
+  Generates a 3-phase pulsing pattern by toggling RD0, RD1, and RD2 in a specific sequence. This sequence is repeated a number of times determined by the `fidelity` variable, with each step delayed by the value stored in `timeSet`.
 
-```
-frequency = (adc_value * (20000 - 60)) / 1023 + 60
-```
+### 5. UART Communication
+- **UART_ISR():**  
+  The UART Interrupt Service Routine handles incoming data. When a receive interrupt occurs, it:
+  - Checks and clears any overrun error.
+  - Reads the first byte into `stateValue`.
+  - If a second byte is available, it reads it into `indexValue` and updates `timeSet`.
+- **UART_Read():**  
+  Waits for data to be received (with a timeout) and returns the received character.
+- **UART_Transmit(char data):**  
+  Waits until the transmit register is ready and then sends the given character.
 
-### 6. PWM Frequency Setting
-The Timer2 period for generating the PWM signal is calculated using the formula:
+## Summary
 
-```
-PR2 = (F_osc / (4 * PWM_frequency)) - 1
-```
+This embedded system code controls a 3-phase pulsing circuit by:
+- Initializing and configuring the microcontroller (oscillator, UART, I/O pins).
+- Continuously checking the system state and updating digital outputs to reflect OFF, STANDBY, or RUN states.
+- Generating pulse sequences and phase-specific toggling on various output pins.
+- Using UART interrupts to receive updates and communicate the system status.
 
-where F_osc is the oscillator frequency (8MHz in this case). Adjusting PR2 changes the PWM frequency.
-
-## Goals for Expanding to 3-Phase
-
-1. **Implementing 3 Phase Shifted Signals**: Generate two additional signals that are phase-shifted by 120° and 240° from the original phase.
-2. **Adding Complementary Signals for IGBTs**: Each IGBT requires complementary signals for switching between the positive and negative half-cycles.
-3. **Timing Adjustments**: Ensure that the phase delays are precise, especially at higher frequencies, to avoid damaging the IGBTs.
-4. **PWM Frequency Synchronization**: All three phases must have synchronized PWM generation, scaled according to the user's frequency input.
+This project is structured for clear separation of concerns, making it easier to modify and scale as future requirements evolve.
