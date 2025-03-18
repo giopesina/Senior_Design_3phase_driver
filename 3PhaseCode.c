@@ -89,6 +89,9 @@ void controller_init(void) {
     OSCCON = 0b01110000;                        // Set Internal Oscillator to 8 MHz
     TRISD = 0x00;                               // Set PORTD as Output
     PORTD = 0x00;                               // Initialize PORTD to Low
+
+    ANSELA = 0x11;                              //Digital/Analog (1 = Digital, 0 = Analog)
+    TRISA = 0x11;                               //Output/Input   (1 = Input, 0 = Output)
 }
 
 // UART Initialization
@@ -154,13 +157,16 @@ void __interrupt() UART_ISR(void) {
         }
         
         char receivedData = RCREG;      // Read first byte
-        stateValue = receivedData;      // Store received byte
+        RA0 = 1 ? timeset = recievedData : stateValue = recievedData;
+        //stateValue = receivedData;      // Store received byte
 
+        /* 
         // Check if another byte is available before reading again
         if (PIR1bits.RCIF) {
             indexValue = RCREG; 
             timeSet = indexValue;
         }
+        */
     }
 }
 
