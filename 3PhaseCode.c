@@ -1,3 +1,9 @@
+/* 
+ * File:   PIC_SOURCE.c
+ * Author: zaz333
+ *
+ * Created on March 18, 2025, 5:43 PM
+*/
 #include <xc.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -90,8 +96,9 @@ void controller_init(void) {
     TRISD = 0x00;                               // Set PORTD as Output
     PORTD = 0x00;                               // Initialize PORTD to Low
 
-    ANSELA = 0x11;                              //Digital/Analog (1 = Digital, 0 = Analog)
-    TRISA = 0x11;                               //Output/Input   (1 = Input, 0 = Output)
+    
+    TRISA = 0x11;  
+    PORTA = 0x00;//Output/Input   (1 = Input, 0 = Output)
 }
 
 // UART Initialization
@@ -116,9 +123,13 @@ void UART_Init(long baud_rate) {
 
 // Delay function
 void delay(int ms) {
-    for (int i = 0; i < ms; i++) {
-        __delay_us(1);
+    if ( ms == 0){
+        __delay_us(50);
     }
+    else if(ms > 0 && ms <= 0xFF){
+        __delay_us(100);
+    }
+    
 }
 
 // Phase Implementation
@@ -157,7 +168,24 @@ void __interrupt() UART_ISR(void) {
         }
         
         char receivedData = RCREG;      // Read first byte
-        RA0 = 1 ? timeset = recievedData : stateValue = recievedData;
+        if(RA0 == 1){
+            timeSet = receivedData;
+        }
+        else if (RA0 == 0){
+            stateValue = receivedData;
+        }
+        else{
+            while(1){
+                for(int i = 0; i < 1; i++){
+                    RD4 = 1;
+                    __delay_ms(500);
+                }
+                for(int i = 0; i < 1; i++){
+                    RD4 = 0;
+                    __delay_ms(500);
+                }
+            }
+        }
         //stateValue = receivedData;      // Store received byte
 
         /* 
@@ -189,3 +217,6 @@ void UART_Transmit(char data) {
     while (!PIR1bits.TXIF);             // Wait until TXREG is empty
     TXREG = data;                       // Load data into TX register
 }
+
+
+
