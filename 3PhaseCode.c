@@ -122,19 +122,25 @@ void UART_Init(long baud_rate) {
 
 
 // Delay function
-void delay(int ms) {
-    if ( ms == 0){
+void delay(int time_delay) {
+    if(time_delay < 1){
         __delay_us(50);
     }
-    else if(ms > 0 && ms <= 0xFF){
-        __delay_us(100);
+    else if(time_delay < 2){
+        __delay_us(100){
+
+        }
     }
-    
+    else{
+        for(int i = 0; i < time_delay; i++){
+            __delay_us(50);
+        }
+    }
 }
 
 // Phase Implementation
 void phaseImp(void) {
-    for(int i = fidelity; i >= 0; i--){
+    for(int i = 0; i < fidelity 0; i++){
         RD0 = 0;
         delay(timeSet);
         RD1 = 1;
