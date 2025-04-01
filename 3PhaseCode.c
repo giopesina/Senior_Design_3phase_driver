@@ -127,9 +127,7 @@ void delay(int time_delay) {
         __delay_us(50);
     }
     else if(time_delay < 2){
-        __delay_us(100){
-
-        }
+        __delay_us(100);
     }
     else{
         for(int i = 0; i < time_delay; i++){
