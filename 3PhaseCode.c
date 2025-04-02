@@ -26,7 +26,7 @@
 int fidelity;
 volatile char stateValue;
 volatile char indexValue;
-volatile int timeSet;
+volatile char timeSet;
 volatile int state;
 
 // Function Prototypes
@@ -122,7 +122,7 @@ void UART_Init(long baud_rate) {
 
 
 // Delay function
-void delay(int time_delay) {
+void delay(char time_delay) {
     if(time_delay < 1){
         __delay_us(50);
     }
@@ -130,7 +130,7 @@ void delay(int time_delay) {
         __delay_us(100);
     }
     else{
-        for(int i = 0; i < time_delay; i++){
+        for(char i = 0x00; i < time_delay; i++){
             __delay_us(50);
         }
     }
