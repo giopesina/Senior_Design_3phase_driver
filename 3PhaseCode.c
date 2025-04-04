@@ -1,9 +1,3 @@
-/* 
- * File:   PIC_SOURCE.c
- * Author: zaz333
- *
- * Created on March 18, 2025, 5:43 PM
-*/
 #include <xc.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,7 +132,7 @@ void delay(char time_delay) {
 
 // Phase Implementation
 void phaseImp(void) {
-    for(int i = 0; i < fidelity 0; i++){
+    for(int i = 0; i < fidelity; i++){
         RD0 = 0;
         delay(timeSet);
         RD1 = 1;
@@ -173,7 +167,8 @@ void __interrupt() UART_ISR(void) {
         
         char receivedData = RCREG;      // Read first byte
         if(RA0 == 1){
-            timeSet = receivedData;
+            int timeSet = receivedData;
+            UART_Transmit('A');
         }
         else if (RA0 == 0){
             stateValue = receivedData;
@@ -221,6 +216,5 @@ void UART_Transmit(char data) {
     while (!PIR1bits.TXIF);             // Wait until TXREG is empty
     TXREG = data;                       // Load data into TX register
 }
-
 
 
