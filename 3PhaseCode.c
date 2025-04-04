@@ -14,7 +14,7 @@
 
 #define _XTAL_FREQ 8000000      // 8 MHz INTOSC
 
-
+//Zarek Moreno
 
 // Global Variables
 int fidelity;
