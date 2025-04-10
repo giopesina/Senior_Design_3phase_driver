@@ -12,7 +12,7 @@
 #pragma config WRT = OFF
 #pragma config CP = OFF
 
-#define _XTAL_FREQ 8000000
+#define _XTAL_FREQ 8000000  // 8 MHz crystal
 
 // Global Variables
 int fidelity;
@@ -24,83 +24,135 @@ volatile char uartMode = 0;
 void controller_init(void);
 void global_init(void);
 void UART_Init(long baud_rate);
-void statusCheck(void);
-void phaseImp(void);
-void delay(char time_delay);
-void __interrupt() UART_ISR(void);
-void UART_Transmit(char data);
+void UART_Transmit(unsigned char data);
 unsigned char mapCharToTimeSet(char c);
+void __interrupt() UART_ISR(void);
 void pulse(void);
+void phaseImp(void);
+void delay(char t);
 
-int main(void) {
+// Main Function
+void main(void) {
     controller_init();
     global_init();
     UART_Init(9600);
 
     while (1) {
-        statusCheck();
+        if (stateValue == '0') {
+            RD3 = 1; RD4 = 0; RD5 = 0;
+        } else if (stateValue == '1') {
+            RD3 = 0; RD4 = 1; RD5 = 0;
+            pulse();
+        } else if (stateValue == '2') {
+            RD3 = 0; RD4 = 0; RD5 = 1;
+            phaseImp();
+        } else {
+            RD3 = 1; RD4 = 0; RD5 = 1;
+        }
     }
 }
 
-void statusCheck(void) {
-    if (stateValue == '0') {
-        RD3 = 1; RD4 = 0; RD5 = 0;
-    } else if (stateValue == '1') {
-        RD3 = 0; RD4 = 1; RD5 = 0;
-        pulse();
-    } else if (stateValue == '2') {
-        RD3 = 0; RD4 = 0; RD5 = 1;
-        phaseImp();
-    } else {
-        RD3 = 1; RD4 = 0; RD5 = 1;
-    }
-}
-
-void pulse(void) {
-    RD6 = 1;
-    __delay_ms(1000);
-    RD6 = 0;
-    __delay_ms(1000);
-}
-
+// Initialization
 void controller_init(void) {
-    OSCCON = 0b01110000;
+    OSCCON = 0b01110000;  // Internal 8 MHz (if using INTOSC)
     TRISD = 0x00;
     PORTD = 0x00;
-
     TRISA = 0x11;
     PORTA = 0x00;
 }
 
+void global_init(void) {
+    stateValue = '0';
+    timeSet = 75;
+    fidelity = 3;
+}
+
+// UART
 void UART_Init(long baud_rate) {
     TRISC6 = 0;
     TRISC7 = 1;
 
-    BAUDCTL = 0;
     BRGH = 1;
-    SPBRG = (_XTAL_FREQ / (16 * baud_rate)) - 1;
+    SPBRG = (unsigned char)((_XTAL_FREQ / (16 * baud_rate)) - 1);
 
-    TXSTA = 0b00100100;
-    RCSTA = 0b10010000;
+    SYNC = 0;
+    SPEN = 1;
+    TXEN = 1;
+    CREN = 1;
 
-    PIE1bits.RCIE = 1;
-    INTCONbits.PEIE = 1;
-    INTCONbits.GIE = 1;
+    RCIE = 1;
+    PEIE = 1;
+    GIE = 1;
 }
 
-void global_init(void) {
-    stateValue = '0';
-    timeSet = 0;
-    //state = 0;
-    fidelity = 3;
+void UART_Transmit(unsigned char data) {
+    while (!TXIF);
+    TXREG = data;
 }
 
-void delay(char time_delay) {
-    for (char i = 0x00; i < time_delay; i++) {
+// Interrupt for UART receive
+void __interrupt() UART_ISR(void) {
+    if (RCIF) {
+        if (OERR) {
+            CREN = 0; CREN = 1;
+        }
+
+        char received = RCREG;
+
+        if (uartMode == 0) {
+            uartMode = received;  // Command: 'S' or 'T'
+        } else {
+            switch (uartMode) {
+                case 'T':
+                    timeSet = mapCharToTimeSet(received);
+                    UART_Transmit('A');
+                    break;
+                case 'S':
+                    stateValue = received;
+                    UART_Transmit('A');
+                    break;
+                default:
+                    UART_Transmit('E');  // Unknown command
+                    break;
+            }
+            uartMode = 0;
+        }
+    }
+}
+
+// Convert char to delay value (0-60 index scale)
+unsigned char mapCharToTimeSet(char c) {
+    int index = -1;
+
+    if (c >= '0' && c <= '9') {
+        index = c - '0';  // 0-9
+    } else if (c >= 'a' && c <= 'z') {
+        index = 10 + (c - 'a');  // 10-35
+    } else if (c >= 'B' && c <= 'Z') {
+        index = 36 + (c - 'B');  // 36-60 (skip A)
+    }
+
+    if (index >= 0 && index <= 60) {
+        return (unsigned char)(200 - (index * 3));  // maps to 200→20
+    }
+
+    return 75;  // Default
+}
+
+// Delay routine (microseconds scaled)
+void delay(char t) {
+    for (char i = 0; i < t; i++) {
         __delay_us(50);
     }
 }
 
+// LED pulse
+void pulse(void) {
+    RD6 = 1; __delay_ms(500);
+    RD6 = 0; __delay_ms(500);
+}
+
+// Step sequence
 void phaseImp(void) {
     for (int i = 0; i < fidelity; i++) {
         RD0 = 0; delay(timeSet);
@@ -110,58 +162,4 @@ void phaseImp(void) {
         RD1 = 0; delay(timeSet);
         RD2 = 1; delay(timeSet);
     }
-}
-
-void UART_Transmit(char data) {
-    while (!PIR1bits.TXIF);
-    TXREG = data;
-}
-
-void __interrupt() UART_ISR(void) {
-    if (PIR1bits.RCIF) {
-        if (RCSTAbits.OERR) {
-            RCSTAbits.CREN = 0;
-            RCSTAbits.CREN = 1;
-        }
-
-        char receivedData = RCREG;
-
-        if (uartMode == 0) {
-            uartMode = receivedData;  // 'T' or 'S'
-        } else {
-            switch (uartMode) {
-                case 'T':
-                    timeSet = mapCharToTimeSet(receivedData);
-                    UART_Transmit('A');
-                    break;
-                case 'S':
-                    stateValue = receivedData;
-                    UART_Transmit('A');
-                    break;
-                default:
-                    UART_Transmit('E');
-                    break;
-            }
-            uartMode = 0;  // Reset
-        }
-    }
-}
-
-// Map input characters to delays
-unsigned char mapCharToTimeSet(char c) {
-    int index = -1;
-
-    if (c >= '0' && c <= '9') {
-        index = c - '0';
-    } else if (c >= 'a' && c <= 'z') {
-        index = 10 + (c - 'a');
-    } else if (c >= 'B' && c <= 'Z') {
-        index = 36 + (c - 'B');
-    }
-
-    if (index >= 0 && index <= 60) {
-        return 200 - (index * 3);  // Scaled delay
-    }
-
-    return 75;  // Fallback
 }
