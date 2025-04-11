@@ -18,10 +18,7 @@
 
 // Global Variables
 int fidelity;
-unsigned char stateValue;
-unsigned char indexValue;
-int timeSet;
-unsigned char state;
+unsigned char stateValue, indexValue, timeSet, timer;
 
 // Function Prototypes
 void controller_init(void);
@@ -30,13 +27,12 @@ void statusCheck(void);
 void phaseImp(void);
 void delay(int ms);
 void pulse(void);
-char UART_Read(void)
+char UART_Read(void);
 
 //UART Function Prototypes
-void UART_Init(long baud_rate)
-void __interrupt() UART_ISR(void)
-void UART_Transmit(char data) {
-
+void UART_Init(long baud_rate);
+void __interrupt() UART_ISR(void);
+void UART_Transmit(char data);
 
 //Main Function
 int main(void) {
@@ -54,20 +50,23 @@ int main(void) {
 
 // Function Definitions
 void statusCheck(void) {
-    if (stateValue == '0') {         // OFF
+
+    if (stateValue == 0) {         // OFF
         RD3 = 1;
         RD4 = 0;
         RD5 = 0;
         UART_Transmit('A');
     } 
-    else if (stateValue == '1') {    // STANDBY
+
+    else if (stateValue == 1) {    // STANDBY
         RD3 = 0;
         RD4 = 1;
         RD5 = 0;
         pulse();
         UART_Transmit('B');
     } 
-    else if (stateValue == '2') {    // RUN
+
+    else if (stateValue == 2) {    // RUN
         RD3 = 0;
         RD4 = 0;
         RD5 = 1;
@@ -83,6 +82,7 @@ void statusCheck(void) {
 }
 
 void pulse(void){
+
     RD6 = 1;
     for(int i = 0; i < 2; i++){
         __delay_ms(500);
@@ -123,46 +123,35 @@ void UART_Init(long baud_rate) {
     INTCONbits.GIE = 1;
 }
 
-
-
 // Delay function
-void delay(int ms) {
-    if ( ms < 1){
+void delay() {
+    for(unsigned char i = 0; i < timeSet; i++){
         __delay_us(50);
     }
-    else if (ms < 2){
-        __delay_us(100)
-    }
-    else{
-        for(unsigned char i = '2'; i < '255'; i++){
-            __delay_us(50);
-        }
-    }
-    
 }
 
 // Phase Implementation
 void phaseImp(void) {
     for(int i = fidelity; i >= 0; i--){
         RD0 = 0;
-        delay(timeSet);
+        delay();
         RD1 = 1;
-        delay(timeSet);
+        delay();
         RD2 = 0;
-        delay(timeSet);
+        delay();
         RD0 = 1;
-        delay(timeSet);
+        delay();
         RD1 = 0;
-        delay(timeSet);
+        delay();
         RD2 = 1;
-        delay(timeSet);
+        delay();
     }   
 }
 
 // Global variable initialization
 void global_init(void) {
-    stateValue = '0';                   // Used to determine if the system is on or off
-    indexValue = '0';                   // Used to determine the pulsing rate of the system
+    stateValue = 0;                   // Used to determine if the system is on or off
+    indexValue = 0;                   // Used to determine the pulsing rate of the system
     timeSet = 0;                        // Used, but unsure how - Zarek 
     state = 0;                          // I'm not sure how this is used - Zarek
     fidelity = 3;
@@ -177,7 +166,7 @@ void __interrupt() UART_ISR(void) {
             RCSTAbits.CREN = 1;
         }
         
-        char receivedData = RCREG;      // Read first byte
+        unsigned char receivedData = RCREG;      // Read first byte
         if(RA0 == 1){
             timeSet = receivedData;
         }
@@ -207,8 +196,6 @@ void __interrupt() UART_ISR(void) {
         
     }
 }
-
-
 
 // UART Read Function
 char UART_Read(void) {
