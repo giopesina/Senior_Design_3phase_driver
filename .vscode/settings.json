@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "hardwarecode": "c",
+        "stdio.h": "c"
+    }
+}
