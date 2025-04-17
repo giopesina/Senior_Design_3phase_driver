@@ -99,6 +99,14 @@ void controller_init(void) {
     TRISD = 0x00;                               // Set PORTD as Output
     PORTD = 0x00;                               // Initialize PORTD to Low
 
+    TRISCbits.TRISC0 = 0;                       //Phase 1
+    TRISCbits.TRISC1 = 0;                       //Complement of P1
+    TRISCbits.TRISC2 = 0;                       //Phase 2
+
+    TRISCbits.TRISC3 = 0;                       //Complement of P2
+    TRISCbits.TRISD0 = 0;                       //Phase 3
+    TRISCbits.TRISD1 = 0;                       //Complement of P3
+
     TRISA = 0x11;  
     PORTA = 0x00;//Output/Input   (1 = Input, 0 = Output)
 }
@@ -125,8 +133,13 @@ void UART_Init(long baud_rate) {
 
 // Delay function
 void delay() {
-    for(unsigned char i = 0; i < timeSet; i++){
-        __delay_us(50);
+    // Linear interpolation from 50 µs to 16,666 µs (60Hz to 20kHz)
+    // delay_us = 50 + ((16616 * timeSet) / 255)
+    unsigned long delay_us = 50 + ((unsigned long)16616 * timeSet) / 255;
+
+    // Perform delay using one loop
+    while (delay_us--) {
+        __delay_us(1);
     }
 }
 
