@@ -25,7 +25,6 @@ void controller_init(void);
 void global_init(void);
 void UART_Init(long baud_rate);
 void UART_Transmit(unsigned char data);
-unsigned char mapCharToTimeSet(char c);
 void __interrupt() UART_ISR(void);
 void pulse(void);
 void phaseImp(void);
@@ -59,6 +58,10 @@ void controller_init(void) {
     PORTD = 0x00;
     TRISA = 0x11;
     PORTA = 0x00;
+
+    ADCON1 = 0x06;  // All analog inputs set to digital
+    CM1CON0 = 0x00; // Disable comparators
+    CM2CON0 = 0x00;
 }
 
 void global_init(void) {
@@ -97,14 +100,14 @@ void __interrupt() UART_ISR(void) {
             CREN = 0; CREN = 1;
         }
 
-        char received = RCREG;
+        unsigned char received = RCREG;
 
         if (uartMode == 0) {
             uartMode = received;  // Command: 'S' or 'T'
         } else {
             switch (uartMode) {
                 case 'T':
-                    timeSet = mapCharToTimeSet(received);
+                    timeSet = received;   // Now accepts raw unsigned char
                     UART_Transmit('A');
                     break;
                 case 'S':
@@ -118,25 +121,6 @@ void __interrupt() UART_ISR(void) {
             uartMode = 0;
         }
     }
-}
-
-// Convert char to delay value (0-60 index scale)
-unsigned char mapCharToTimeSet(char c) {
-    int index = -1;
-
-    if (c >= '0' && c <= '9') {
-        index = c - '0';  // 0-9
-    } else if (c >= 'a' && c <= 'z') {
-        index = 10 + (c - 'a');  // 10-35
-    } else if (c >= 'B' && c <= 'Z') {
-        index = 36 + (c - 'B');  // 36-60 (skip A)
-    }
-
-    if (index >= 0 && index <= 60) {
-        return (unsigned char)(200 - (index * 3));  // maps to 200→20
-    }
-
-    return 75;  // Default
 }
 
 // Delay routine (microseconds scaled)
