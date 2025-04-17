@@ -1,3 +1,9 @@
+/* 
+ * File:   PIC_SOURCE.c
+ * Author: zaz333
+ *
+ * Created on March 18, 2025, 5:43 PM
+*/
 #include <xc.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,7 +40,6 @@ void pulse(void);
 int main(void) {
     controller_init();
     global_init();
-    UART_Init(9600);                 // Initialize UART with 9600 baud rate
     
     while (1) {
         statusCheck();  
@@ -82,13 +87,14 @@ void controller_init(void) {
     OSCCON = 0b01110000;                        // Set Internal Oscillator to 8 MHz
     TRISD = 0x00;                               // Set PORTD as Output
     PORTD = 0x00;                               // Initialize PORTD to Low
-
+    
+    TRISCbits.TRISC1 = 0;
+    TRISCbits.TRISC2 = 0;
+    TRISCbits.TRISC3 = 0;
     
     TRISA = 0x11;  
-    PORTA = 0x00;//Output/Input   (1 = Input, 0 = Output)
+    PORTA = 0x00;//Output/Input   //(1 = Input, 0 = Output)
 }
-
-
 
 // Delay function
 void delay(int ms) {
@@ -96,10 +102,10 @@ void delay(int ms) {
         __delay_us(50);
     }
     else if (ms < 2){
-        __delay_us(100)
+        __delay_us(100);
     }
     else{
-        for(unsigned char i = '2'; i < '255'; i++){
+        for(int i = ms; i < 255; i++){
             __delay_us(50);
         }
     }
@@ -109,28 +115,26 @@ void delay(int ms) {
 // Phase Implementation
 void phaseImp(void) {
     for(int i = fidelity; i >= 0; i--){
-        RD0 = 0;
+        RD0 = 0; RC1 = 1;
         delay(timeSet);
-        RD1 = 1;
+        RD1 = 1; RC2 = 0;
         delay(timeSet);
-        RD2 = 0;
+        RD2 = 0; RC3 = 1;
         delay(timeSet);
-        RD0 = 1;
+        RD0 = 1; RC1 = 0;
         delay(timeSet);
-        RD1 = 0;
+        RD1 = 0; RC2 = 1;
         delay(timeSet);
-        RD2 = 1;
+        RD2 = 1; RC3 = 0;
         delay(timeSet);
     }   
 }
 
 // Global variable initialization
 void global_init(void) {
-    stateValue = '0';                   // Used to determine if the system is on or off
+    stateValue = '2';                   // Used to determine if the system is on or off
     indexValue = '0';                   // Used to determine the pulsing rate of the system
-    timeSet = 0;                        // Used, but unsure how - Zarek 
+    timeSet = 4;                        // Used, but unsure how - Zarek 
     state = 0;                          // I'm not sure how this is used - Zarek
     fidelity = 3;
 }
-
-
