@@ -16,6 +16,32 @@ y_data2 = []
 y_data3 = []
 
 selected = "temp"
+last_time_set = 255  # default starting value
+
+def clear_input():
+    input_var.set("")
+
+def gradual_shutdown():
+    global last_time_set
+    print(f"Initiating gradual shutdown from {last_time_set}...")
+
+    for value in reversed(range(0, last_time_set + 1, 10)):
+        uart.send(bytes([0x54]))
+        time.sleep(0.05)
+        uart.send(bytes([value]))
+        if uart.read() != bytes([0x41]):
+            print(f"Failed to ack value {value}")
+        time.sleep(0.1)
+
+    uart.send(bytes([0x53]))  # 'S'
+    time.sleep(0.05)
+    uart.send(bytes([0x30]))  # '0'
+    if uart.read() == bytes([0x41]):
+        print("System turned off.")
+
+    print("Exiting GUI.")
+    root.quit()
+
 
 def avg_chunk_data(x, y, c_size):
     avg_x = []
@@ -73,9 +99,9 @@ def u_graph():
 
     canvas.draw()
     root.after(16, u_graph)
-    
-    
+
 def submit_input():
+    global last_time_set
     try:
         ev = int(input_var.get())
     except ValueError:
@@ -83,53 +109,44 @@ def submit_input():
         return
 
     ev = max(0, min(255, ev))
-    index = round((ev / 255) * 60)
+    print(f"Sending raw timeSet value: {ev} (0x{ev:02X})")
 
-    if 0 <= index <= 9:
-        char_to_send = chr(ord('0') + index)
-    elif 10 <= index <= 35:
-        char_to_send = chr(ord('a') + (index - 10))
-    elif 36 <= index <= 60:
-        char_to_send = chr(ord('B') + (index - 36))
-    else:
-        char_to_send = 'x'
-
-    print(f"Sending timeSet char: '{char_to_send}'")
     while True:
-        uart.send('T')  # T for timeSet
+        uart.send(bytes([0x54]))  # 'T'
         time.sleep(0.05)
-        uart.send(char_to_send)
-        if uart.read() == 'A':
+        uart.send(bytes([ev]))
+        if uart.read() == bytes([0x41]):
+            last_time_set = ev
             print("TimeSet acknowledged.")
             break
+
 
 def state_run():
     io.output(23, 0)
     while True:
-        uart.send('S')
+        uart.send(bytes([0x53]))  # 'S'
         time.sleep(0.05)
-        uart.send('2')
-        if uart.read() == b'A':
+        uart.send(bytes([0x32]))  # '2'
+        if uart.read() == bytes([0x41]):
             break
 
 def state_standby():
     io.output(23, 0)
     while True:
-        uart.send('S')
+        uart.send(bytes([0x53]))  # 'S'
         time.sleep(0.05)
-        uart.send('1')
-        if uart.read() == b'A':
+        uart.send(bytes([0x31]))  # '1'
+        if uart.read() == bytes([0x41]):
             break
 
 def state_off():
     io.output(23, 0)
     while True:
-        uart.send('S')
+        uart.send(bytes([0x53]))  # 'S'
         time.sleep(0.05)
-        uart.send('0')
-        if uart.read() == b'A':
+        uart.send(bytes([0x30]))  # '0'
+        if uart.read() == bytes([0x41]):
             break
-
 
 def keypad_in(num):
     current_text = input_var.get()
@@ -168,7 +185,6 @@ try:
     keypad.pack()
 
     buttons = []
-
     for i in range(3):
         for j in range(3):
             num = i * 3 + j + 1
@@ -179,8 +195,18 @@ try:
     zero_button = ttk.Button(keypad, text="0", command=lambda: keypad_in(0), width=5)
     zero_button.grid(row=3, column=1, padx=5, pady=5)
 
-    submit_button = ttk.Button(root, text="Submit", command=submit_input)
-    submit_button.pack(pady=10)
+    submit_frame = ttk.Frame(root)
+    submit_frame.pack(pady=10)
+
+    submit_button = ttk.Button(submit_frame, text="Submit", command=submit_input, width=10)
+    submit_button.grid(row=0, column=0, padx=5)
+
+    clear_button = ttk.Button(submit_frame, text="Clear", command=clear_input, width=10)
+    clear_button.grid(row=0, column=1, padx=5)
+
+    off_button = ttk.Button(submit_frame, text="Shutdown", command=gradual_shutdown, width=10)
+    off_button.grid(row=0, column=2, padx=5)
+
 
     u_graph()
     root.mainloop()
