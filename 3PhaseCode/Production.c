@@ -122,7 +122,14 @@ void __interrupt() UART_ISR(void) {
         }
     }
 }
-
+/*
+// Delay routine (microseconds scaled)
+void delay(char t) {
+    for (char i = 0; i < t; i++) {
+        __delay_us(50);
+    }
+}
+*/
 // Delay function
 void delay(void) {
     // approximate delay_us = 50 + timeSet * 65
