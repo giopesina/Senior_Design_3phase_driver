@@ -123,10 +123,22 @@ void __interrupt() UART_ISR(void) {
     }
 }
 
-// Delay routine (microseconds scaled)
-void delay(char t) {
-    for (char i = 0; i < t; i++) {
-        __delay_us(50);
+// Delay function
+void delay(void) {
+    // approximate delay_us = 50 + timeSet * 65
+    //   at timeSet=0 -> 50 µs; at 255 -> 50 + 255*65 = 16 575 µs (within ~0.5% of 16 616)
+    unsigned int d = 50 + (unsigned int)timeSet * 65;
+
+    // do whole milliseconds first
+    unsigned int ms = d / 1000;
+    while (ms--) {
+        __delay_ms(1);
+    }
+
+    // then the leftover microseconds
+    unsigned int us = d % 1000;
+    while (us--) {
+        __delay_us(1);
     }
 }
 
