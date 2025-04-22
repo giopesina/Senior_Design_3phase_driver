@@ -37,20 +37,38 @@ void main(void) {
     UART_Init(9600);
 
     while (1) {
-        if (stateValue == '0') {
-            RD3 = 1; RD4 = 0; RD5 = 0;
-        } else if (stateValue == '1') {
-            RD3 = 0; RD4 = 1; RD5 = 0;
+        if (stateValue == 0) {         // OFF
+        RD3 = 1;
+        RD4 = 0;
+        RD5 = 0;
+        UART_Transmit('A');
+        } 
+
+        else if (stateValue == 1) {    // STANDBY
+            RD3 = 0;
+            RD4 = 1;
+            RD5 = 0;
             pulse();
-        } else if (stateValue == '2') {
-            RD3 = 0; RD4 = 0; RD5 = 1;
+            UART_Transmit('B');
+        } 
+
+        else if (stateValue == 2) {    // RUN
+            RD3 = 0;
+            RD4 = 0;
+            RD5 = 1;
             phaseImp();
-        } else {
-            RD3 = 1; RD4 = 0; RD5 = 1;
+            UART_Transmit('C');
+        }
+
+        else {
+            RD3 = 1;
+            RD4 = 0; 
+            RD5 = 1;
         }
     }
 }
 
+/* Old Initialization code
 // Initialization
 void controller_init(void) {
     OSCCON = 0b01110000;  // Internal 8 MHz (if using INTOSC)
@@ -62,7 +80,25 @@ void controller_init(void) {
     ADCON1 = 0x06;  // All analog inputs set to digital
     CM1CON0 = 0x00; // Disable comparators
     CM2CON0 = 0x00;
+*/
+// Initialize controller
+void controller_init(void) {
+    OSCCON = 0b01110000;                        // Set Internal Oscillator to 8 MHz
+    TRISD = 0x00;                               // Set PORTD as Output
+    PORTD = 0x00;                               // Initialize PORTD to Low
+
+    TRISCbits.TRISC0 = 0;                       //Phase 1
+    TRISCbits.TRISC1 = 0;                       //Complement of P1
+    TRISCbits.TRISC2 = 0;                       //Phase 2
+
+    TRISCbits.TRISC3 = 0;                       //Complement of P2
+    TRISCbits.TRISD0 = 0;                       //Phase 3
+    TRISCbits.TRISD1 = 0;                       //Complement of P3
+
+    TRISA = 0x11;  
+    PORTA = 0x00;//Output/Input   (1 = Input, 0 = Output)
 }
+
 
 void global_init(void) {
     stateValue = '0';
@@ -156,7 +192,7 @@ void pulse(void) {
     RD6 = 1; __delay_ms(500);
     RD6 = 0; __delay_ms(500);
 }
-
+/*
 // Step sequence
 void phaseImp(void) {
     for (int i = 0; i < fidelity; i++) {
@@ -166,5 +202,46 @@ void phaseImp(void) {
         RD0 = 1; delay(timeSet);
         RD1 = 0; delay(timeSet);
         RD2 = 1; delay(timeSet);
+    }
+}
+*/
+// Phase Implementation
+void phaseImp(void) {
+    for (int i = fidelity; i >= 0; i--) {
+        // Step 1: A⁺, B⁻,  C off
+        RC0 = 1; RC1 = 0;   // A+
+        RC2 = 0; RC3 = 1;   // B–
+        RD0 = 0; RD1 = 0;   // C off
+        delay();
+
+        // Step 2: A⁺, C⁻,  B off
+        RC0 = 1; RC1 = 0;   // A+
+        RC2 = 0; RC3 = 0;   // B off
+        RD0 = 0; RD1 = 1;   // C–
+        delay();
+
+        // Step 3: B⁺, C⁻,  A off
+        RC0 = 0; RC1 = 0;   // A off
+        RC2 = 1; RC3 = 0;   // B+
+        RD0 = 0; RD1 = 1;   // C–
+        delay();
+
+        // Step 4: B⁺, A⁻,  C off
+        RC0 = 0; RC1 = 1;   // A–
+        RC2 = 1; RC3 = 0;   // B+
+        RD0 = 0; RD1 = 0;   // C off
+        delay();
+
+        // Step 5: C⁺, A⁻,  B off
+        RC0 = 0; RC1 = 1;   // A–
+        RC2 = 0; RC3 = 0;   // B off
+        RD0 = 1; RD1 = 0;   // C+
+        delay();
+
+        // Step 6: C⁺, B⁻,  A off
+        RC0 = 0; RC1 = 0;   // A off
+        RC2 = 0; RC3 = 1;   // B–
+        RD0 = 1; RD1 = 0;   // C+
+        delay();
     }
 }

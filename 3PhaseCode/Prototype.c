@@ -101,9 +101,10 @@ void controller_init(void) {
 
     TRISCbits.TRISC0 = 0;                       //Phase 1
     TRISCbits.TRISC1 = 0;                       //Complement of P1
-    TRISCbits.TRISC2 = 0;                       //Phase 2
 
+    TRISCbits.TRISC2 = 0;                       //Phase 2
     TRISCbits.TRISC3 = 0;                       //Complement of P2
+
     TRISCbits.TRISD0 = 0;                       //Phase 3
     TRISCbits.TRISD1 = 0;                       //Complement of P3
 
@@ -153,20 +154,45 @@ void delay(void) {
 
 // Phase Implementation
 void phaseImp(void) {
-    for(int i = fidelity; i >= 0; i--){
-        RC0 = 0; RC1 = 1;
+    for (int i = fidelity; i >= 0; i--) {
+        // Step 1: A⁺, B⁻,  C off
+        RC0 = 1; RC1 = 0;   // A+
+        RC2 = 0; RC3 = 1;   // B–
+        RD0 = 0; RD1 = 0;   // C off
         delay();
-        RC2 = 1; RC3 = 0;
+
+        // Step 2: A⁺, C⁻,  B off
+        RC0 = 1; RC1 = 0;   // A+
+        RC2 = 0; RC3 = 0;   // B off
+        RD0 = 0; RD1 = 1;   // C–
         delay();
-        RD2 = 0;
+
+        // Step 3: B⁺, C⁻,  A off
+        RC0 = 0; RC1 = 0;   // A off
+        RC2 = 1; RC3 = 0;   // B+
+        RD0 = 0; RD1 = 1;   // C–
         delay();
-        RD0 = 1;
+
+        // Step 4: B⁺, A⁻,  C off
+        RC0 = 0; RC1 = 1;   // A–
+        RC2 = 1; RC3 = 0;   // B+
+        RD0 = 0; RD1 = 0;   // C off
         delay();
-        RD1 = 0;
+
+        // Step 5: C⁺, A⁻,  B off
+        RC0 = 0; RC1 = 1;   // A–
+        RC2 = 0; RC3 = 0;   // B off
+        RD0 = 1; RD1 = 0;   // C+
         delay();
-        RD2 = 1;
+
+        // Step 6: C⁺, B⁻,  A off
+        RC0 = 0; RC1 = 0;   // A off
+        RC2 = 0; RC3 = 1;   // B–
+        RD0 = 1; RD1 = 0;   // C+
         delay();
-    }   
+    }
+}
+
 }
 
 // Global variable initialization
