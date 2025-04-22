@@ -101,9 +101,10 @@ void controller_init(void) {
 
     TRISCbits.TRISC0 = 0;                       //Phase 1
     TRISCbits.TRISC1 = 0;                       //Complement of P1
-    TRISCbits.TRISC2 = 0;                       //Phase 2
 
+    TRISCbits.TRISC2 = 0;                       //Phase 2
     TRISCbits.TRISC3 = 0;                       //Complement of P2
+
     TRISCbits.TRISD0 = 0;                       //Phase 3
     TRISCbits.TRISD1 = 0;                       //Complement of P3
 
@@ -132,33 +133,66 @@ void UART_Init(long baud_rate) {
 }
 
 // Delay function
-void delay() {
-    // Linear interpolation from 50 µs to 16,666 µs (60Hz to 20kHz)
-    // delay_us = 50 + ((16616 * timeSet) / 255)
-    unsigned long delay_us = 50 + ((unsigned long)16616 * timeSet) / 255;
+void delay(void) {
+    // approximate delay_us = 50 + timeSet * 65
+    //   at timeSet=0 -> 50 µs; at 255 -> 50 + 255*65 = 16 575 µs (within ~0.5% of 16 616)
+    unsigned int d = 50 + (unsigned int)timeSet * 65;
 
-    // Perform delay using one loop
-    while (delay_us--) {
+    // do whole milliseconds first
+    unsigned int ms = d / 1000;
+    while (ms--) {
+        __delay_ms(1);
+    }
+
+    // then the leftover microseconds
+    unsigned int us = d % 1000;
+    while (us--) {
         __delay_us(1);
     }
 }
 
+
 // Phase Implementation
 void phaseImp(void) {
-    for(int i = fidelity; i >= 0; i--){
-        RD0 = 0;
+    for (int i = fidelity; i >= 0; i--) {
+        // Step 1: A⁺, B⁻,  C off
+        RC0 = 1; RC1 = 0;   // A+
+        RC2 = 0; RC3 = 1;   // B–
+        RD0 = 0; RD1 = 0;   // C off
         delay();
-        RD1 = 1;
+
+        // Step 2: A⁺, C⁻,  B off
+        RC0 = 1; RC1 = 0;   // A+
+        RC2 = 0; RC3 = 0;   // B off
+        RD0 = 0; RD1 = 1;   // C–
         delay();
-        RD2 = 0;
+
+        // Step 3: B⁺, C⁻,  A off
+        RC0 = 0; RC1 = 0;   // A off
+        RC2 = 1; RC3 = 0;   // B+
+        RD0 = 0; RD1 = 1;   // C–
         delay();
-        RD0 = 1;
+
+        // Step 4: B⁺, A⁻,  C off
+        RC0 = 0; RC1 = 1;   // A–
+        RC2 = 1; RC3 = 0;   // B+
+        RD0 = 0; RD1 = 0;   // C off
         delay();
-        RD1 = 0;
+
+        // Step 5: C⁺, A⁻,  B off
+        RC0 = 0; RC1 = 1;   // A–
+        RC2 = 0; RC3 = 0;   // B off
+        RD0 = 1; RD1 = 0;   // C+
         delay();
-        RD2 = 1;
+
+        // Step 6: C⁺, B⁻,  A off
+        RC0 = 0; RC1 = 0;   // A off
+        RC2 = 0; RC3 = 1;   // B–
+        RD0 = 1; RD1 = 0;   // C+
         delay();
-    }   
+    }
+}
+
 }
 
 // Global variable initialization
