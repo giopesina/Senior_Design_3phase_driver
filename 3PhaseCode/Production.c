@@ -122,6 +122,7 @@ void __interrupt() UART_ISR(void) {
         }
     }
 }
+// In case the other delay function does not work as desired
 /*
 // Delay routine (microseconds scaled)
 void delay(char t) {
@@ -130,6 +131,7 @@ void delay(char t) {
     }
 }
 */
+
 // Delay function
 void delay(void) {
     // approximate delay_us = 50 + timeSet * 65
