@@ -81,6 +81,7 @@ void controller_init(void) {
     TRISCbits.TRISC3 = 0;                       //Complement of P2
                            //Phase 3
                           //Complement of P3
+    TRISCbits.TRISC4 = 0;
 
     TRISA = 0x11;  
     PORTA = 0x00;//Output/Input   (1 = Input, 0 = Output)
