@@ -148,21 +148,21 @@ void __interrupt() UART_ISR(void) {
 
 // Delay function
 void delay(void) {
-    // approximate delay_us = 50 + timeSet * 65
-    //   at timeSet=0 -> 50 µs; at 255 -> 50 + 255*65 = 16 575 µs (within ~0.5% of 16 616)
-    unsigned int d = 50 + (unsigned int)timeSet * 65;
-
-    // do whole milliseconds first
-    unsigned int ms = d / 1000;
-    while (ms--) {
-        __delay_ms(1);
+    //If timeSet is 0 -> fastest pulsing: 20KHz <=> 50us
+    if (timeSet == 0){
+        __delay_us(50);
+    }
+    else{
+        for(unsigned char i = 0; i <= timeSet; i++){
+            //If timeSet is 1 -> 50us * 2
+            if(timeSet == 1){
+                __delay_us(100); // <- 50us * 2 = 100us
+            }
+            //else delay for 50us * i : i < timeSet => 0 <= i <= 255 => 78Hz and 20KHz
+            __delay_us(50);
+        }
     }
 
-    // then the leftover microseconds
-    unsigned int us = d % 1000;
-    while (us--) {
-        __delay_us(1);
-    }
 }
 
 // LED pulse
