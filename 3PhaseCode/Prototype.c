@@ -38,32 +38,32 @@ void main(void) {
 
     while (1) {
         if (stateValue == '0') {         // OFF
-        RD3 = 1;
-        RD4 = 0;
-        RD5 = 0;
+        RC4 = 1;
+        RD3 = 0;
+        RD2 = 0;
         UART_Transmit('A');
         }
 
         else if (stateValue == '1') {    // STANDBY
-            RD3 = 0;
-            RD4 = 1;
-            RD5 = 0;
+            RC4 = 0;
+            RD3 = 1;
+            RD2 = 0;
             pulse();
             UART_Transmit('A');
         }
 
         else if (stateValue == '2') {    // RUN
+            RC4 = 0;
             RD3 = 0;
-            RD4 = 0;
-            RD5 = 1;
+            RD2 = 1;
             phaseImp();
             UART_Transmit('A');
         }
 
         else {
-            RD3 = 1;
-            RD4 = 0;
-            RD5 = 1;
+            RC4 = 1;
+            RD3 = 0;
+            RD2 = 1;
         }
     }
 }
