@@ -2,5 +2,6 @@
     "files.associations": {
         "hardwarecode": "c",
         "stdio.h": "c"
-    }
+    },
+    "python.REPL.enableREPLSmartSend": false
 }
